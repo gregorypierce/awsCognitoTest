@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Cognito Login Test</title>
+
+    <script src="js/jsbn.js"></script>
+    <script src="js/jsbn2.js"></script>
+    <script src="js/sjcl.js"></script>
+    <script src="js/moment.js"></script>
+    <script src="js/aws-cognito-sdk.js"></script>
+    <script src="js/amazon-cognito-identity.min.js"></script>
+    <script src="js/aws-sdk.js"></script>
+
+
+    <script>
+
+        var poolData = {
+            UserPoolId : 'us-east-1_euACCUP2R',
+            ClientId : '4893lf1028u66mhbp8fsoh5cv9',
+            Paranoia : 7
+        };
+
+        var userPool = new AWSCognito.CognitoIdentityServiceProvider.CognitoUserPool(poolData);
+        var cognitoUser;
+
+
+        function signUp( userName, emailAddress, phoneNumber )
+        {
+            var password = prompt('Please enter your password', '');
+
+            var attributeList = [];
+
+            var dataEmail = {
+                Name : 'email',
+                Value : emailAddress
+            };
+            var dataPhoneNumber = {
+                Name : 'phone_number',
+                Value : phoneNumber
+            };
+            var attributeEmail = new AWSCognito.CognitoIdentityServiceProvider.CognitoUserAttribute(dataEmail);
+            var attributePhoneNumber = new AWSCognito.CognitoIdentityServiceProvider.CognitoUserAttribute(dataPhoneNumber);
+
+            attributeList.push(attributeEmail);
+            attributeList.push(attributePhoneNumber);
+
+            userPool.signUp( userName, password, attributeList, null, function(err, result){
+                if (err) {
+                    alert(err);
+                    return;
+                }
+                cognitoUser = result.user;
+                console.log('user name is ' + cognitoUser.getUsername());
+            });
+        }
+
+        function authenticate( userName )
+        {
+            var password = prompt('Please enter your password', '');
+
+            var userData = {
+                Username : userName,
+                Pool : userPool
+            };
+            cognitoUser = new AWSCognito.CognitoIdentityServiceProvider.CognitoUser(userData);
+
+
+            var authenticationData = {
+                Username: userName,
+                Password: password
+            };
+
+            var authenticationDetails = new AWSCognito.CognitoIdentityServiceProvider.AuthenticationDetails(authenticationData);
+
+
+
+            cognitoUser.authenticateUser(authenticationDetails, {
+                onSuccess: function (result) {
+                    console.log('access token + ' + result.getAccessToken().getJwtToken());
+                    /*Use the idToken for Logins Map when Federating User Pools with Cognito Identity or when passing through an Authorization Header to an API Gateway Authorizer*/
+                    console.log('idToken + ' + result.idToken.jwtToken);
+
+                    // Initialize the Amazon Cognito credentials provider
+                    AWS.config.region = 'us-east-1'; // Region
+                    AWS.config.credentials = new AWS.CognitoIdentityCredentials({
+                        IdentityPoolId: 'us-east-1:878fe7b9-685b-41c0-9ff6-c076a239053d',
+                        Logins: {
+                            'cognito-idp.us-east-1.amazonaws.com/us-east-1_euACCUP2R': result.getIdToken().getJwtToken()
+                        }
+                    });
+
+                    AWS.config.credentials.get(function(err){
+                        if (err) {
+                            alert(err);
+                        }
+                    });
+                },
+
+                onFailure: function(err) {
+                    alert(err);
+                },
+
+                mfaRequired: function(codeDeliveryDetails) {
+                    var verificationCode = prompt('Please input verification code' ,'');
+                    cognitoUser.sendMFACode(verificationCode, this);
+                }
+
+            });
+        }
+
+        function confirm( userName, confirmationCode )
+        {
+            var userData = {
+                Username : userName,
+                Pool : userPool
+            };
+            cognitoUser = new AWSCognito.CognitoIdentityServiceProvider.CognitoUser(userData);
+
+            cognitoUser.confirmRegistration( confirmationCode, true, function(err, result) {
+                if (err) {
+                    alert(err);
+                    return;
+                }
+                console.log('call result: ' + result);
+            });
+        }
+
+        function resendConfirmation( userName )
+        {
+            var userData = {
+                Username : userName,
+                Pool : userPool
+            };
+            cognitoUser = new AWSCognito.CognitoIdentityServiceProvider.CognitoUser(userData);
+
+            cognitoUser.resendConfirmationCode(function(err, result) {
+                if (err) {
+                    alert(err);
+                    return;
+                }
+                alert(result);
+            });
+        }
+
+        function signOut()
+        {
+            if ( cognitoUser != null )
+            {
+                cognitoUser.signOut();
+            }
+        }
+
+
+
+
+
+//        signUp('testUser4', 'gregorypierce@gmail.com', '+14042590723');
+
+      //  var uname = prompt('Please enter your userName', '');
+      //          var ccode = prompt('Please enter your confirmation code', '');
+      //          confirm( uname, ccode );
+
+        authenticate('testUser4');
+    </script>
+
+</head>
+<body>
+
+</body>
+</html>
